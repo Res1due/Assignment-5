@@ -91,6 +91,14 @@ void Andersen::runPointerAnalysis()
 void Andersen::updateCallGraph(SVF::CallGraph* cg)
 {
     auto pag = SVF::PAG::getPAG();
+    const auto addCopy = [this](unsigned src, unsigned dst) {
+        // ConsG can omit isolated actual/formal and return nodes.
+        if (!consg->hasConstraintNode(src))
+            consg->addConstraintNode(new SVF::ConstraintNode(src), src);
+        if (!consg->hasConstraintNode(dst))
+            consg->addConstraintNode(new SVF::ConstraintNode(dst), dst);
+        consg->addCopyCGEdge(src, dst);
+    };
     std::set<std::pair<const SVF::CallICFGNode*, const SVF::FunObjVar*>> resolved;
     bool changed;
     do
@@ -114,11 +122,11 @@ void Andersen::updateCallGraph(SVF::CallGraph* cg)
                     const auto &actuals = pag->getCallSiteArgsList(call);
                     const auto &formals = pag->getFunArgsList(function);
                     for (size_t i = 0; i < actuals.size() && i < formals.size(); ++i)
-                        consg->addCopyCGEdge(actuals[i]->getId(), formals[i]->getId());
+                        addCopy(actuals[i]->getId(), formals[i]->getId());
                 }
                 const auto *ret = call->getRetICFGNode();
                 if (pag->callsiteHasRet(ret) && pag->funHasRet(function))
-                    consg->addCopyCGEdge(pag->getFunRet(function)->getId(),
+                    addCopy(pag->getFunRet(function)->getId(),
                                         pag->getCallSiteRet(ret)->getId());
             }
         }
